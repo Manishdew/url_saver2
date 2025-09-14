@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>URL Saver</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      width: 500px;
+    }
+    input, button, select {
+      padding: 10px;
+      margin: 5px 0;
+      width: 100%;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      margin: 12px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .link-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-grow: 1;
+    }
+    .link-info img {
+      width: 40px;
+      height: 40px;
+      border-radius: 5px;
+      object-fit: cover;
+    }
+    .category-label {
+      font-size: 0.8em;
+      color: #555;
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 8px;
+    }
+    .favorite {
+      color: gold;
+      font-size: 1.2em;
+      cursor: pointer;
+    }
+    .favorite.inactive {
+      color: #ccc;
+    }
+    a {
+      color: #007bff;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .delete-btn, .edit-btn {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      margin-left: 5px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .edit-btn {
+      background: #28a745;
+    }
+    .delete-btn:hover {
+      background: #a71d2a;
+    }
+    .edit-btn:hover {
+      background: #1e7e34;
+    }
+    .clear-btn, .export-btn, .import-btn {
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 10px;
+      margin-top: 10px;
+      width: 100%;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .clear-btn:hover, .export-btn:hover, .import-btn:hover {
+      background: #495057;
+    }
+    .filters {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .filters select {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Save Your Links</h2>
+    <input type="text" id="nameInput" placeholder="Enter Name" />
+    <input type="text" id="urlInput" placeholder="Enter URL (https://...)" />
+    <input type="file" id="imgInput" accept="image/*" />
+    <select id="categoryInput">
+      <option value="">Select Category</option>
+      <option value="Work">Work</option>
+      <option value="Personal">Personal</option>
+      <option value="Education">Education</option>
+      <option value="Entertainment">Entertainment</option>
+      <option value="Other">Other</option>
+    </select>
+    <button onclick="saveUrl()">Save Link</button>
+
+    <input type="text" id="searchInput" placeholder="Search by name or category..." onkeyup="renderUrls()" />
+
+    <div class="filters">
+      <select id="filterCategory" onchange="renderUrls()">
+        <option value="">Filter by Category</option>
+        <option value="Work">Work</option>
+        <option value="Personal">Personal</option>
+        <option value="Education">Education</option>
+        <option value="Entertainment">Entertainment</option>
+        <option value="Other">Other</option>
+      </select>
+      <select id="sortOrder" onchange="renderUrls()">
+        <option value="date-desc">Sort by Date (Newest)</option>
+        <option value="date-asc">Sort by Date (Oldest)</option>
+        <option value="name-asc">Sort by Name (A-Z)</option>
+        <option value="name-desc">Sort by Name (Z-A)</option>
+      </select>
+    </div>
+
+    <ul id="urlList"></ul>
+    <button class="clear-btn" onclick="clearAll()">Clear All Links</button>
+    <button class="export-btn" onclick="exportLinks()">Export Links</button>
+    <input type="file" id="importFile" style="display:none" onchange="importLinks(event)" />
+    <button class="import-btn" onclick="document.getElementById('importFile').click()">Import Links</button>
+  </div>
+
+  <script>
+    const nameInput = document.getElementById('nameInput');
+    const urlInput = document.getElementById('urlInput');
+    const imgInput = document.getElementById('imgInput');
+    const categoryInput = document.getElementById('categoryInput');
+    const urlList = document.getElementById('urlList');
+    const searchInput = document.getElementById('searchInput');
+    const filterCategory = document.getElementById('filterCategory');
+    const sortOrder = document.getElementById('sortOrder');
+
+    let editIndex = -1;
+
+    function saveUrl() {
+      let name = nameInput.value.trim();
+      let url = urlInput.value.trim();
+      let category = categoryInput.value;
+      let file = imgInput.files[0];
+
+      if (!url || !name) return;
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        url = "https://" + url;
+      }
+
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          saveToStorage(name, url, e.target.result, category);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        saveToStorage(name, url, "", category);
+      }
+    }
+
+    function saveToStorage(name, url, img, category) {
+      let urls = JSON.parse(localStorage.getItem('urls')) || [];
+      const timestamp = new Date().getTime();
+
+      if (editIndex >= 0) {
+        urls[editIndex] = { ...urls[editIndex], name, url, img: img || urls[editIndex].img, category };
+        editIndex = -1;
+      } else {
+        urls.push({ name, url, img, category, timestamp, favorite: false });
+      }
+      localStorage.setItem('urls', JSON.stringify(urls));
+
+      nameInput.value = "";
+      urlInput.value = "";
+      imgInput.value = "";
+      categoryInput.value = "";
+      renderUrls();
+    }
+
+    function deleteUrl(index) {
+      let urls = JSON.parse(localStorage.getItem('urls')) || [];
+      urls.splice(index, 1);
+      localStorage.setItem('urls', JSON.stringify(urls));
+      renderUrls();
+    }
+
+    function editUrl(index) {
+      let urls = JSON.parse(localStorage.getItem('urls')) || [];
+      let item = urls[index];
+      nameInput.value = item.name;
+      urlInput.value = item.url;
+      categoryInput.value = item.category;
+      editIndex = index;
+    }
+
+    function toggleFavorite(index) {
+      let urls = JSON.parse(localStorage.getItem('urls')) || [];
+      urls[index].favorite = !urls[index].favorite;
+      localStorage.setItem('urls', JSON.stringify(urls));
+      renderUrls();
+    }
+
+    function clearAll() {
+      localStorage.removeItem('urls');
+      renderUrls();
+    }
+
+    function exportLinks() {
+      let urls = JSON.parse(localStorage.getItem('urls')) || [];
+      let blob = new Blob([JSON.stringify(urls, null, 2)], { type: 'application/json' });
+      let link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'links_backup.json';
+      link.click();
+    }
+
+    function importLinks(event) {
+      let file = event.target.files[0];
+      if (!file) return;
+
+      let reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          let imported = JSON.parse(e.target.result);
+          if (Array.isArray(imported)) {
+            localStorage.setItem('urls', JSON.stringify(imported));
+            renderUrls();
+          } else {
+            alert('Invalid file format');
+          }
+        } catch {
+          alert('Error reading file');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function renderUrls() {
+      urlList.innerHTML = "";
+      let urls = JSON.parse(localStorage.getItem('urls')) || [];
+      let searchTerm = searchInput.value.toLowerCase();
+      let filter = filterCategory.value;
+      let sort = sortOrder.value;
+
+      urls = urls
+        .filter(item => {
+          let matchesSearch = item.name.toLowerCase().includes(searchTerm) || (item.category && item.category.toLowerCase().includes(searchTerm));
+          let matchesFilter = !filter || item.category === filter;
+          return matchesSearch && matchesFilter;
+        });
+
+      urls.sort((a, b) => (b.favorite === true) - (a.favorite === true));
+
+      if (sort === "name-asc") {
+        urls.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (sort === "name-desc") {
+        urls.sort((a, b) => b.name.localeCompare(a.name));
+      } else if (sort === "date-asc") {
+        urls.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      } else {
+        urls.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      }
+
+      urls.forEach((item, index) => {
+        let li = document.createElement('li');
+        let imgTag = item.img ? `<img src="${item.img}" alt="icon">` : "";
+        let categoryTag = item.category ? `<span class="category-label">${item.category}</span>` : "";
+        let favoriteStar = `<span class="favorite ${item.favorite ? '' : 'inactive'}" onclick="toggleFavorite(${index})">★</span>`;
+        li.innerHTML = `
+          <div class="link-info">
+            ${imgTag}
+            <a href="${item.url}" target="_blank">${item.name}</a> ${categoryTag}
+          </div>
+          <div>
+            ${favoriteStar}
+            <button class="edit-btn" onclick="editUrl(${index})">Edit</button>
+            <button class="delete-btn" onclick="deleteUrl(${index})">Delete</button>
+          </div>`;
+        urlList.appendChild(li);
+      });
+    }
+
+    renderUrls();
+  </script>
+</body>
+</html>
